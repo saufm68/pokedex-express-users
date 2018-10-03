@@ -13,5 +13,18 @@
     "pg": "^7.4.1",
     "react": "^16.4.1",
     "react-dom": "^16.4.1"
-  }
+  },
+  "description": "## Getting Started",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/saufm68/pokedex-express-users.git"
+  },
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/saufm68/pokedex-express-users/issues"
+  },
+  "homepage": "https://github.com/saufm68/pokedex-express-users#readme"
 }

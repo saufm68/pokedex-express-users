@@ -1,0 +1,12 @@
+, trainer: result.rows[1]
+
+    let trainer = this.props.trainer.map(trainer => (
+        <li key={trainer.id}> {pokemon.name}</li>
+    ));
+
+          <div className="trainer-list">
+          <h1>Trainerdex</h1>
+          <ul>
+            {trainer}
+          </ul>
+          </div>

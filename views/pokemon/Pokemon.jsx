@@ -2,6 +2,10 @@ var React = require("react");
 
 class Pokemon extends React.Component {
   render() {
+
+    let updateUrl = '/pokemon/' + this.props.pokemon.id + '/edit';
+    let deleteUrl = '/pokemon/' + this.props.pokemon.id + '/delete';
+
     return (
       <html>
         <head />
@@ -25,6 +29,9 @@ class Pokemon extends React.Component {
               </li>
 
             </ul>
+            <a href={updateUrl}><button>Update</button></a>
+            <br/>
+            <a href={deleteUrl}><button>Delete</button></a>
           </div>
         </body>
       </html>
