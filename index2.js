@@ -1,7 +1,8 @@
 const express = require('express');
 const methodOverride = require('method-override');
 const pg = require('pg');
-
+const cookieParser = require('cookie-parser');
+var sha256 = require('js-sha256');
 
 
 // Initialise postgres client
@@ -31,6 +32,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
 //To allow to link to style.css
 app.use(express.static('public'));
+app.use(cookieParser());
 
 // Set react-views to be the default view engine
 const reactEngine = require('express-react-views').createEngine();
@@ -67,31 +69,34 @@ app.get('/catch/:id', (request, response) => {
 
 app.post('/catch/:id', (request, response) => {
 
-    let text = "INSERT INTO catching (pokemon_id, trainer_id) VALUES ($1, $2)";
+    let text = "INSERT INTO catching (pokemon_id, trainer_id) VALUES ";
+    let params = request.params.id;
+    let values = [];
 
-    for (let i = 0; i < request.body.pokemon_id.length; i++) {
+    for (let i = 1; i <= request.body.pokemon_id.length; i++) {
 
-        var values = [request.body.pokemon_id[i], request.params.id];
+        if (i === request.body.pokemon_id.length) {
+            text += `($${i}, '${params}');`;
+        } else {
+            text += `($${i}, '${params}'), `;
+        }
 
-        pool.query(text, values, (err, result) => {
+        values.push(request.body.pokemon_id[i - 1]);
 
-            if (err) {
-
-                console.log("query error1: ", err.message);
-                response.send("ERROR32");
-
-            } else {
-
-                if(i = (request.body.pokemon_id.length - 1) ) {
-
-                    response.redirect('/users/' + request.params.id);
-
-                }
-
-            }
-
-        });
     }
+
+    pool.query(text, values, (err, result) => {
+
+        if (err) {
+
+            console.log("query error: ", err.message);
+            response.send("ERROR");
+        } else {
+
+            response.redirect('/users/' + params);
+        }
+
+    });
 
 });
 
@@ -99,6 +104,74 @@ app.post('/catch/:id', (request, response) => {
 
 /* USER ============================
 ==================================*/
+app.get('/users/release', (request, response) => {
+
+    let text = "SELECT pokemon.id, pokemon.name FROM pokemon INNER JOIN catching ON (catching.pokemon_id= pokemon.id) WHERE catching.trainer_id='" + request.cookies['userId'] + "';";
+
+    pool.query(text, (err, result) => {
+
+        if (err) {
+
+            console.log("release query error: ", err.message);
+            response.send("ERROR");
+        } else {
+
+            response.render('users/release', {pokemon: result.rows});
+        }
+    });
+
+});
+
+app.delete('/release', (request, response) => {
+
+    if (Array.isArray(request.body.id)) {
+
+        let text = "DELETE FROM catching WHERE (pokemon_id=" + request.body.id[0];
+
+        for(let i = 1; i < request.body.id.length; i++) {
+
+            text += " OR pokemon_id=" + request.body.id[i];
+
+        }
+
+        text += ") AND trainer_id=" + request.cookies['userId'];
+
+        pool.query(text, (err, result) => {
+
+            if (err) {
+
+                console.log("array delete query error: ", err.message);
+                response.send("ERROR");
+
+            } else {
+
+             response.redirect('/users/' + request.cookies['userId']);
+
+            }
+
+        })
+
+
+    } else {
+
+        let text = "DELETE FROM catching WHERE pokemon_id=" + request.body.id + " AND trainer_id=" + request.cookies['userId'];
+
+        pool.query(text, (err, result) => {
+
+            if (err) {
+
+                console.log("single delete query error: ", err.message);
+                response.send("ERROR");
+
+            } else {
+
+                response.redirect('/users/' + request.cookies['userId']);
+            }
+        })
+
+    }
+
+});
 
 app.get('/users/new', (request, response) => {
 
@@ -108,9 +181,9 @@ app.get('/users/new', (request, response) => {
 
 app.post('/users', (request, response) => {
 
-    let text = "INSERT INTO trainer (name) Values ($1) RETURNING id, name;";
+    let text = "INSERT INTO trainer (username) Values ($1) RETURNING id, username;";
 
-    let values = [request.body.name];
+    let values = [request.body.username];
 
     pool.query(text, values, (err, result) => {
 
@@ -121,7 +194,7 @@ app.post('/users', (request, response) => {
 
         } else {
 
-            console.log(result.rows);
+            //console.log(result.rows);
             response.redirect('/');
         }
 
@@ -130,7 +203,11 @@ app.post('/users', (request, response) => {
 
 app.get('/users/:id', (request, response) => {
 
-    let text = "SELECT * FROM trainer WHERE id=" + request.params.id;
+    let text = "SELECT pokemon.id,pokemon.name FROM pokemon INNER JOIN catching ON (catching.pokemon_id = pokemon.id) WHERE catching.trainer_id="  + request.params.id;
+    let text2 = "SELECT * FROM trainer WHERE id=" + request.params.id;
+    let id = request.params.id;
+    let loggedInUser = request.cookies['userId'];
+    let caughtPokemon;
 
     pool.query(text, (err, result) => {
 
@@ -141,9 +218,79 @@ app.get('/users/:id', (request, response) => {
 
         } else {
 
-            response.render('users/user', {trainer: result.rows[0]});
+            caughtPokemon = result.rows;
+
+            pool.query(text2, (err, result) => {
+
+                if(err) {
+
+                    console.log("inner query error: ", err.message);
+                    response.send("ERROR!!!")
+
+                } else {
+
+                    response.render('users/user', {pokemon: caughtPokemon, trainer: result.rows[0], currentUser: loggedInUser});
+                }
+
+            });
         }
 
+
+    });
+
+});
+
+
+
+
+app.get('/users/:id/delete', (request, response) => {
+
+    let text = 'SELECT * FROM trainer WHERE id=' + request.params.id;
+
+    pool.query(text, (err, result) => {
+
+        if (err) {
+
+            console.log("query error1: ", err.message);
+            response.send("ERROR3");
+
+        } else {
+
+            response.render('users/delete', {trainer: result.rows[0]});
+        }
+    });
+
+});
+
+app.delete('/users/:id', (request, response) => {
+
+    let text = "DELETE FROM trainer WHERE id=" + request.params.id;
+    let text2 = "DELETE FROM catching WHERE trainer_id=" + request.params.id;
+
+    pool.query(text, (err, result) => {
+
+        if (err) {
+
+            console.log("query error1: ", err.message);
+            response.send("ERROR3");
+
+        } else {
+
+            pool.query(text2, (err, result) => {
+
+                if (err) {
+
+                    console.log("query error2: ", err.message);
+                    response.send("ERROR4");
+
+                } else {
+
+                    response.redirect('/');
+
+                }
+
+            });
+        }
 
     });
 
@@ -266,6 +413,7 @@ app.get('/pokemon/:id/delete', (request, response) => {
 app.delete('/pokemon/:id', (request, response) => {
 
     let text =  "DELETE from pokemon WHERE id=" + request.params.id;
+    let text2 = "DELETE from catching WHERE pokemon_id="+ request.params.id;
 
     pool.query(text, (err, result) => {
 
@@ -275,7 +423,19 @@ app.delete('/pokemon/:id', (request, response) => {
             response.send("ERROR!!!");
         } else {
 
-            response.redirect('/');
+            pool.query(text2, (err, result) => {
+
+                if (err) {
+
+                    console.log("query error: ", err.message);
+                    response.send("ERROR!!!");
+                } else {
+
+                    response.redirect('/');
+
+                }
+
+            });
         }
 
     });
@@ -284,19 +444,86 @@ app.delete('/pokemon/:id', (request, response) => {
 
 
 
-
-
-
-
-
 /*ROOT=====================================
 =========================================*/
 
+app.get('/login', (request, response) => {
+
+    response.render('users/login');
+
+});
+
+app.post('/login', (request, response)=> {
+
+    let text = "SELECT * FROM trainer WHERE username='" + request.body.username + "';";
+
+    pool.query(text, (err, result) => {
+
+        if(err) {
+
+            console.log("login query error: ", err.message);
+            response.send("ERROR");
+        } else {
+
+            if(result.rows[0] !== undefined && sha256(request.body.password) === result.rows[0].password) {
+
+                console.log("logged-in as: ", request.body.username);
+                response.cookie('loggedIn', request.body.username);
+                response.cookie('userId', result.rows[0].id);
+                response.redirect('/');
+
+            } else {
+
+                console.log('wrong username/password');
+                response.redirect('/login');
+            }
+        }
+
+    });
+
+});
+
+app.get('/register', (request, response) => {
+
+    response.render('users/register');
+
+});
+
+app.post('/register', (request, response) => {
+
+    let text = "INSERT INTO trainer (username, password) VALUES ($1, $2);";
+
+    let values = [request.body.username, sha256(request.body.password)];
+
+    pool.query(text, values, (err, result) => {
+
+        if(err) {
+
+            console.log("register query error: ", err.message);
+            response.send("ERROR");
+        } else {
+
+            response.redirect('/login');
+        }
+
+    });
+
+});
+
+app.post('/', (request, response) => {
+
+    response.clearCookie('loggedIn');
+    response.clearCookie('userId');
+    response.redirect('/');
+
+});
+
 app.get('/', (request, response) => {
 
-    let text = "SELECT * FROM pokemon;"
-    let text2 = "SELECT * FROM trainer"
+    let text = "SELECT * FROM pokemon;";
+    let text2 = "SELECT * FROM trainer;";
     var pokemon = {};
+    var check = request.cookies['loggedIn'];
 
     pool.query(text, (err, result) => {
 
@@ -308,19 +535,27 @@ app.get('/', (request, response) => {
         } else {
 
             pokemon["pokedex"] = result.rows;
-            pool.query(text2, (err, result) => {
 
-                if (err) {
-                    console.log("error message2: ", err);
-                    response.send("ERROR2");
+            if (check !== undefined) {
 
-                } else {
+                pool.query(text2, (err, result) => {
 
-                    pokemon['trainerdex'] = result.rows;
-                    response.render('pokemon/home', {pokemon: pokemon["pokedex"], trainer: pokemon['trainerdex']});
-                }
+                    if (err) {
+                        console.log("error message2: ", err);
+                        response.send("ERROR2");
 
-            });
+                    } else {
+
+                        pokemon['trainerdex'] = result.rows;
+                        response.render('pokemon/home', {pokemon: pokemon["pokedex"], trainer: pokemon['trainerdex']});
+                    }
+
+                });
+
+            } else {
+
+                response.render('pokemon/home-loggedout', {pokemon: pokemon["pokedex"]});
+            }
 
         }
     })

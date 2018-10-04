@@ -10,10 +10,9 @@ class Home extends React.Component {
 
     let trainer = this.props.trainer.map(trainer => (
 
-        <li key={trainer.id}><a href={'/users/' + trainer.id}> {trainer.name}</a></li>
+        <li key={trainer.id}><a href={'/users/' + trainer.id}> {trainer.username}</a></li>
     ));
 
-    //console.log(this);
     return (
       <html>
         <head>
@@ -32,7 +31,9 @@ class Home extends React.Component {
             <ul>
                 {trainer}
             </ul>
-            <a href="/users/new"><button>Add new Trainer</button></a>
+            <form method="POST" action="/">
+                <input type="submit" value="Log Out" />
+            </form>
           </div>
         </body>
       </html>

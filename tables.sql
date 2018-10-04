@@ -8,10 +8,13 @@ CREATE TABLE IF NOT EXISTS pokemon (
 
 );
 
+DROP TABLE IF EXISTS trainer;
+
 CREATE TABLE IF NOT EXISTS trainer (
 
 	id SERIAL PRIMARY KEY,
-	name TEXT
+	username TEXT,
+	password TEXT
 
 );
 
